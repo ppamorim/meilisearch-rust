@@ -39,6 +39,7 @@ impl<'a> Client<'a> {
     ///
     /// let indexes: Vec<Index> = client.list_all_indexes().await.unwrap();
     /// println!("{:?}", indexes);
+    /// assert_eq!(indexes.len(), 6);
     /// # }
     /// ```
     pub async fn list_all_indexes(&'a self) -> Result<Vec<Index<'a>>, Error> {
