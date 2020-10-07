@@ -145,3 +145,17 @@ If you want to know more about the development workflow or want to contribute, p
 <hr>
 
 **MeiliSearch** provides and maintains many **SDKs and Integration tools** like this one. We want to provide everyone with an **amazing search experience for any kind of project**. If you want to contribute, make suggestions, or just know what's going on right now, visit us in the [integration-guides](https://github.com/meilisearch/integration-guides) repository.
+
+## Dockerfile
+
+To build the image, run:
+
+```
+docker build --tag meilisearch-rust:1.0 .
+```
+
+to run the image:
+
+```
+docker run meilisearch-rust:1.0
+```
