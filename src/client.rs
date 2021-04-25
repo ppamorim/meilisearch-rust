@@ -1,6 +1,6 @@
 use crate::{errors::*, indexes::*, request::*};
 use serde_json::{json, Value};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
 use std::collections::HashMap;
 
 /// The top-level struct of the SDK, representing a client containing [indexes](../indexes/struct.Index.html).
@@ -13,7 +13,7 @@ pub struct Client<'a> {
 impl<'a> Client<'a> {
     /// Create a client using the specified server.
     /// Don't put a '/' at the end of the host.
-    /// In production mode, see [the documentation about authentication](https://docs.meilisearch.com/guides/advanced_guides/authentication.html#authentication).
+    /// In production mode, see [the documentation about authentication](https://docs.meilisearch.com/reference/features/authentication.html#authentication).
     /// # Example
     ///
     /// ```
@@ -32,14 +32,13 @@ impl<'a> Client<'a> {
     ///
     /// ```
     /// # use meilisearch_sdk::{client::*, indexes::*};
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// // create the client
     /// let client = Client::new("http://localhost:7700", "masterKey");
     ///
     /// let indexes: Vec<Index> = client.list_all_indexes().await.unwrap();
     /// println!("{:?}", indexes);
-    /// # }
+    /// # });
     /// ```
     pub async fn list_all_indexes(&'a self) -> Result<Vec<Index<'a>>, Error> {
         let json_indexes = request::<(), Vec<JsonIndex>>(
@@ -64,15 +63,14 @@ impl<'a> Client<'a> {
     /// ```
     /// # use meilisearch_sdk::{client::*, indexes::*};
     ///
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// // create the client
     /// let client = Client::new("http://localhost:7700", "masterKey");
     /// # client.create_index("movies", None).await;
     ///
     /// // get the index named "movies"
     /// let movies = client.get_index("movies").await.unwrap();
-    /// # }
+    /// # });
     /// ```
     pub async fn get_index(&'a self, uid: &'a str) -> Result<Index<'a>, Error> {
         Ok(request::<(), JsonIndex>(
@@ -99,8 +97,7 @@ impl<'a> Client<'a> {
     /// ```
     /// # use meilisearch_sdk::{client::*, indexes::*};
     /// #
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// // create the client
     /// let client = Client::new("http://localhost:7700", "masterKey");
     ///
@@ -109,7 +106,7 @@ impl<'a> Client<'a> {
     /// # }
     /// // create a new index called movies and access it
     /// let movies = client.create_index("movies", None).await;
-    /// # }
+    /// # });
     /// ```
     pub async fn create_index(
         &'a self,
@@ -160,11 +157,10 @@ impl<'a> Client<'a> {
     /// ```
     /// # use meilisearch_sdk::{client::*, indexes::*};
     /// #
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// let client = Client::new("http://localhost:7700", "masterKey");
     /// let stats = client.get_stats().await.unwrap();
-    /// # }
+    /// # });
     /// ```
     pub async fn get_stats(&self) -> Result<ClientStats, Error> {
         request::<serde_json::Value, ClientStats>(
@@ -180,71 +176,63 @@ impl<'a> Client<'a> {
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, errors::{Error, ErrorCode}};
+    /// # use meilisearch_sdk::{client::*, errors::{Error, ErrorCode}};
     /// #
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// let client = Client::new("http://localhost:7700", "masterKey");
-    ///
-    /// match client.get_health().await {
-    ///     Ok(()) => println!("server is operational"),
-    ///     Err(Error::MeiliSearchError { error_code: ErrorCode::Maintenance, .. }) => {
-    ///         eprintln!("server is in maintenance")
-    ///     },
-    ///     Err(e) => panic!("should never happen: {}", e),
-    /// }
-    /// # }
+    /// let health = client.health().await.unwrap();
+    /// # });
     /// ```
-    pub async fn get_health(&self) -> Result<(), Error> {
-        let r = request::<(), ()>(
+    pub async fn health(&self) -> Result<Health, Error> {
+        request::<serde_json::Value, Health>(
             &format!("{}/health", self.host),
             self.apikey,
             Method::Get,
-            204,
+            200,
         )
-        .await;
-        match r {
-            // This shouldn't be an error; The status code is 200, but the request
-            // function only supports one successful error code for some reason
-            Err(Error::Empty) => Ok(()),
-            e => e,
-        }
+        .await
     }
 
-    /// Update health of MeiliSearch server.
+    /// Get health of MeiliSearch server, return true or false.
     ///
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*};
+    /// # use meilisearch_sdk::client::*;
     /// #
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// let client = Client::new("http://localhost:7700", "masterKey");
-    ///
-    /// client.set_health(false).await.unwrap();
-    /// # client.set_health(true).await.unwrap();
-    /// # }
+    /// let health = client.is_healthy().await;
+    /// assert_eq!(health, true);
+    /// # });
     /// ```
-    pub async fn set_health(&self, health: bool) -> Result<(), Error> {
-        #[derive(Debug, Serialize)]
-        struct HealthBody {
-            health: bool
+    pub async fn is_healthy(&self) -> bool {
+        if let Ok(health) = self.health().await {
+            health.status.as_str() == "available"
+        } else {
+            false
         }
+    }
 
-        let r = request::<HealthBody, ()>(
-            &format!("{}/health", self.host),
+    /// Get the private and public key.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use meilisearch_sdk::{client::*, errors::Error};
+    /// #
+    /// # futures::executor::block_on(async move {
+    /// let client = Client::new("http://localhost:7700", "masterKey");
+    /// let keys = client.get_keys().await.unwrap();
+    /// # });
+    /// ```
+    pub async fn get_keys(&self) -> Result<Keys, Error> {
+        request::<(), Keys>(
+            &format!("{}/keys", self.host),
             self.apikey,
-            Method::Put(HealthBody { health }),
-            204,
-        )
-        .await;
-        match r {
-            // This shouldn't be an error; The status code is 200, but the request
-            // function only supports one successful error code for some reason
-            Err(Error::Empty) => Ok(()),
-            e => e,
-        }
+            Method::Get,
+            200,
+        ).await
     }
 
     /// Get version of the MeiliSearch server.
@@ -254,11 +242,10 @@ impl<'a> Client<'a> {
     /// ```
     /// # use meilisearch_sdk::{client::*, indexes::*, errors::Error};
     /// #
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # futures::executor::block_on(async move {
     /// let client = Client::new("http://localhost:7700", "masterKey");
     /// let version = client.get_version().await.unwrap();
-    /// # }
+    /// # });
     /// ```
     pub async fn get_version(&self) -> Result<Version, Error> {
         request::<(), Version>(
@@ -278,14 +265,39 @@ pub struct ClientStats {
     pub indexes: HashMap<String, IndexStats>,
 }
 
-/// Version of a MeiliSearch server.
+/// Health of the MeiliSearch server.
+///
 /// Example:
-/// ```text
+///
+/// ```
+/// # use meilisearch_sdk::{client::*, indexes::*, errors::Error};
+/// Health {
+///    status: "available".to_string(),
+/// };
+/// ```
+#[derive(Deserialize)]
+pub struct Health {
+    pub status: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Keys {
+    pub public: Option<String>,
+    pub private: Option<String>,
+}
+
+/// Version of a MeiliSearch server.
+///
+/// Example:
+///
+/// ```
+/// # use meilisearch_sdk::{client::*, indexes::*, errors::Error};
 /// Version {
 ///    commit_sha: "b46889b5f0f2f8b91438a08a358ba8f05fc09fc1".to_string(),
 ///    build_date: "2019-11-15T09:51:54.278247+00:00".to_string(),
 ///    pkg_version: "0.1.1".to_string(),
-/// }
+/// };
 /// ```
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -293,4 +305,16 @@ pub struct Version {
     pub commit_sha: String,
     pub build_date: String,
     pub pkg_version: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{client::*};
+    use futures_await_test::async_test;
+
+    #[async_test]
+    async fn test_get_keys() {
+        let client = Client::new("http://localhost:7700", "masterKey");
+        client.get_keys().await.unwrap();
+    }
 }

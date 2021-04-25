@@ -20,16 +20,13 @@ pub enum Error {
     UnreachableServer,
     /// The MeiliSearch server returned invalid JSON for a request.
     ParseError(serde_json::Error),
-    /// An erroring status code, but no body
-    // This is a hack to make Client::get_health work, since the request module
-    // treats anything other than the expected status as an error.  Since 204 is
-    // specified, a successful status of 200 is treated as an error with an
-    // empty body.
-    Empty,
+    /// This Meilisearch sdk generated an invalid request (which was not sent).
+    /// It probably comes from an invalid API key resulting in an invalid HTTP header.
+    InvalidRequest,
 
     /// The http client encountered an error.
     #[cfg(not(target_arch = "wasm32"))]
-    HttpError(reqwest::Error),
+    HttpError(isahc::Error),
     /// The http client encountered an error.
     #[cfg(target_arch = "wasm32")]
     HttpError(String),
@@ -97,8 +94,7 @@ pub enum ErrorCode {
     InternalError,
     /// The provided token is invalid.
     InvalidToken,
-    /// The MeiliSearch instance is under maintenance. You can set the maintenance
-    /// state by using the `set_healthy` method of a Client.
+    /// The MeiliSearch instance is under maintenance.
     Maintenance,
     /// The requested resources are protected with an API key, which was not
     /// provided in the request header.
@@ -115,6 +111,10 @@ pub enum ErrorCode {
     /// The payload content type is not supported by MeiliSearch. Currently,
     /// MeiliSearch only supports JSON payloads.
     UnsupportedMediaType,
+    /// A dump creation is already in progress and a new one can't be triggered until the previous dump creation is not finished.
+    DumpAlreadyInProgress,
+    /// An error occured during dump creation process, task aborted.
+    DumpProcessFailed,
 
     /// That's unexpected. Please open a GitHub issue after ensuring you are
     /// using the supported version of the MeiliSearch server.
@@ -192,6 +192,8 @@ impl ErrorCode {
             ErrorCode::UnretrievableDocument => "unretrievable_document",
             ErrorCode::SearchError => "search_error",
             ErrorCode::UnsupportedMediaType => "unsupported_media_type",
+            ErrorCode::DumpAlreadyInProgress => "dump_already_in_progress",
+            ErrorCode::DumpProcessFailed => "dump_process_failed",
             // Other than this variant, all the other `&str`s are 'static
             ErrorCode::Unknown(inner) => &inner.0,
         }
@@ -225,6 +227,8 @@ impl ErrorCode {
             "unretrievable_document" => ErrorCode::UnretrievableDocument,
             "search_error" => ErrorCode::SearchError,
             "unsupported_media_type" => ErrorCode::UnsupportedMediaType,
+            "dump_already_in_progress" => ErrorCode::DumpAlreadyInProgress,
+            "dump_process_failed" => ErrorCode::DumpProcessFailed,
             inner => ErrorCode::Unknown(UnknownErrorCode(inner.to_string())),
         }
     }
@@ -256,9 +260,9 @@ impl std::fmt::Display for Error {
                 error_link,
             ),
             Error::UnreachableServer => write!(fmt, "The MeiliSearch server can't be reached."),
+            Error::InvalidRequest => write!(fmt, "Unable to generate a valid HTTP request. It probably comes from an invalid API key."),
             Error::ParseError(e) => write!(fmt, "Error parsing response JSON: {}", e),
-            Error::HttpError(e) => write!(fmt, "HTTP request failed: {}", e),
-            Error::Empty => write!(fmt, "An error occured without a message"),
+            Error::HttpError(e) => write!(fmt, "HTTP request failed: {}", e)
         }
     }
 }
@@ -267,9 +271,6 @@ impl std::error::Error for Error {}
 
 impl From<&serde_json::Value> for Error {
     fn from(json: &serde_json::Value) -> Error {
-        if json.is_null() {
-            return Error::Empty;
-        }
 
         let message = json
             .get("message")
@@ -310,11 +311,12 @@ impl From<&serde_json::Value> for Error {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl From<reqwest::Error> for Error {
-    fn from(error: reqwest::Error) -> Error {
-        match error.status() {
-            None => Error::UnreachableServer,
-            Some(_e) => Error::HttpError(error),
+impl From<isahc::Error> for Error {
+    fn from(error: isahc::Error) -> Error {
+        if error.kind() == isahc::error::ErrorKind::ConnectionFailed {
+            Error::UnreachableServer
+        } else {
+            Error::HttpError(error)
         }
     }
 }

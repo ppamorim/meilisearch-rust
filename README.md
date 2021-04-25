@@ -10,32 +10,38 @@
 
 <h4 align="center">
   <a href="https://github.com/meilisearch/MeiliSearch">MeiliSearch</a> |
-  <a href="https://www.meilisearch.com">Website</a> |
-  <a href="https://blog.meilisearch.com">Blog</a> |
-  <a href="https://twitter.com/meilisearch">Twitter</a> |
   <a href="https://docs.meilisearch.com">Documentation</a> |
+  <a href="https://slack.meilisearch.com">Slack</a> |
+  <a href="https://roadmap.meilisearch.com/tabs/1-under-consideration">Roadmap</a> |
+  <a href="https://www.meilisearch.com">Website</a> |
   <a href="https://docs.meilisearch.com/faq">FAQ</a>
 </h4>
 
 <p align="center">
   <a href="https://crates.io/crates/meilisearch-sdk"><img src="https://img.shields.io/crates/v/meilisearch-sdk.svg" alt="crates.io"></a>
-  <a href="https://github.com/meilisearch/meilisearch-rust/actions"><img src="https://github.com/meilisearch/meilisearch-rust/workflows/Test/badge.svg?branch=master" alt="Tests"></a>
-  <a href="https://github.com/meilisearch/meilisearch-rust/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-informational" alt="License"></a>
+  <a href="https://github.com/meilisearch/meilisearch-rust/actions"><img src="https://github.com/meilisearch/meilisearch-rust/workflows/Tests/badge.svg?branch=main" alt="Tests"></a>
+  <a href="https://github.com/meilisearch/meilisearch-rust/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-informational" alt="License"></a>
   <a href="https://github.com/meilisearch/MeiliSearch/discussions" alt="Discussions"><img src="https://img.shields.io/badge/github-discussions-red" /></a>
-  <a href="https://slack.meilisearch.com"><img src="https://img.shields.io/badge/slack-MeiliSearch-blue.svg?logo=slack" alt="Slack"></a>
+  <a href="https://app.bors.tech/repositories/28502"><img src="https://bors.tech/images/badge_small.svg" alt="Bors enabled"></a>
 </p>
 
-<p align="center">⚡ Lightning Fast, Ultra Relevant, and Typo-Tolerant Search Engine MeiliSearch client written in Rust</p>
+<p align="center">⚡ The MeiliSearch API client written for Rust 🦀</p>
 
-**MeiliSearch Rust** is a client for **MeiliSearch** written in Rust. **MeiliSearch** is a powerful, fast, open-source, easy to use and deploy search engine. Both searching and indexing are highly customizable. Features such as typo-tolerance, filters, and synonyms are provided out-of-the-box.
+**MeiliSearch Rust** is the MeiliSearch API client for Rust developers.
 
-## Table of Contents
+**MeiliSearch** is an open-source search engine. [Discover what MeiliSearch is!](https://github.com/meilisearch/MeiliSearch)
 
+## Table of Contents <!-- omit in TOC -->
+
+- [📖 Documentation](#-documentation)
 - [🔧 Installation](#-installation)
 - [🚀 Getting Started](#-getting-started)
-- [🌐 Running in the Browser with WASM](#-running-in-the-browser-with-wasm)
 - [🤖 Compatibility with MeiliSearch](#-compatibility-with-meilisearch)
 - [⚙️ Development Workflow and Contributing](#️-development-workflow-and-contributing)
+
+## 📖 Documentation
+
+See our [Documentation](https://docs.meilisearch.com/learn/tutorials/getting_started.html) or our [API References](https://docs.meilisearch.com/reference/api/).
 
 ## 🔧 Installation
 
@@ -43,30 +49,30 @@ To use `meilisearch-sdk`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-meilisearch-sdk = "0.3.0"
+meilisearch-sdk = "0.7.0"
 ```
 
 The following optional dependencies may also be useful:
 
 ```toml
-tokio = { version = "0.2", features = ["macros"] }
+futures = "0.3" # To be able to block on async functions if you are not using an async runtime
 serde = { version = "1.0", features = ["derive"] }
 ```
 
-Since this crate is async, you have to run your program in the [tokio](https://crates.io/crates/tokio) runtime. When targetting Wasm, the browser will replace tokio.
+This crate is `async` but you can choose to use an async runtime like [tokio](https://crates.io/crates/tokio) or just [block on futures](https://docs.rs/futures/latest/futures/executor/fn.block_on.html).
 
 Using this crate is possible without [serde](https://crates.io/crates/serde), but a lot of features require serde.
 
-### Run a MeiliSearch Instance
+### Run a MeiliSearch Instance <!-- omit in TOC -->
 
 This crate requires a MeiliSearch server to run.
 
-There are many easy ways to [download and run a MeiliSearch instance](https://docs.meilisearch.com/guides/advanced_guides/installation.html#download-and-launch).
+There are many easy ways to [download and run a MeiliSearch instance](https://docs.meilisearch.com/reference/features/installation.html#download-and-launch).
 
 For example, if you use Docker:
 ```bash
-$ docker pull getmeili/meilisearch:latest # Fetch the latest version of MeiliSearch image from Docker Hub
-$ docker run -it --rm -p 7700:7700 getmeili/meilisearch:latest ./meilisearch --master-key=masterKey
+docker pull getmeili/meilisearch:latest # Fetch the latest version of MeiliSearch image from Docker Hub
+docker run -it --rm -p 7700:7700 getmeili/meilisearch:latest ./meilisearch --master-key=masterKey
 ```
 
 NB: you can also download MeiliSearch from **Homebrew** or **APT**.
@@ -76,6 +82,7 @@ NB: you can also download MeiliSearch from **Homebrew** or **APT**.
 ```rust
 use meilisearch_sdk::{document::*, client::*, search::*};
 use serde::{Serialize, Deserialize};
+use futures::executor::block_on;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Book {
@@ -92,8 +99,7 @@ impl Document for Book {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() { block_on(async move {
     // Create a client (without sending any request so that can't fail)
     let client = Client::new("http://localhost:7700", "masterKey");
 
@@ -111,9 +117,8 @@ async fn main() {
     ], Some("book_id")).await.unwrap();
 
     // Query books (note that there is a typo)
-    let query = Query::new("harry pottre");
-    println!("{:?}", books.search::<Book>(&query).await.unwrap().hits);
-}
+    println!("{:?}", books.search().with_query("harry pottre").execute::<Book>().await.unwrap().hits);
+})}
 ```
 
 Output:
@@ -122,19 +127,19 @@ Output:
 [Book { book_id: 4, title: "Harry Potter and the Half-Blood Prince" }]
 ```
 
-### 🌐 Running in the Browser with WASM
+### 🌐 Running in the Browser with WASM <!-- omit in TOC -->
 
 This crate fully supports WASM.
 
 The only difference between the WASM and the native version is that the native version has one more variant (`Error::Http`) in the Error enum. That should not matter so much but we could add this variant in WASM too.
 
-However, making a program intended to run in a web browser requires a **very** different design than a CLI program. To see an example of a simple Rust web app using MeiliSearch, see the [tutorial (not available yet)]().
+However, making a program intended to run in a web browser requires a **very** different design than a CLI program. To see an example of a simple Rust web app using MeiliSearch, see the [our demo](./examples/web_app).
 
 WARNING: `meilisearch-sdk` will panic if no Window is available (ex: Web extension).
 
 ## 🤖 Compatibility with MeiliSearch
 
-This package only guarantees the compatibility with the [version v0.15.0 of MeiliSearch](https://github.com/meilisearch/MeiliSearch/releases/tag/v0.15.0).
+This package only guarantees the compatibility with the [version v0.20.0 of MeiliSearch](https://github.com/meilisearch/MeiliSearch/releases/tag/v0.20.0).
 
 ## ⚙️ Development Workflow and Contributing
 
