@@ -19,7 +19,7 @@ get_one_document_1: |-
 get_documents_1: |-
   let documents: Vec<Movie> = movies.get_documents(None, Some(2), None).await.unwrap();
 add_or_replace_documents_1: |-
-  let progress: Progress = movies.add_or_replace(&[
+  let progress: Progress = movies.add_or_replace(vec!(
     Movie {
       id: 287947,
       title: "Shazam".to_string(),
@@ -27,7 +27,7 @@ add_or_replace_documents_1: |-
       overview: "A boy is given the ability to become an adult superhero in times of need with a single magic word.".to_string(),
       release_date: "2019-03-23".to_string(),
     }
-  ], None).await.unwrap();
+  ), None).await.unwrap();
 add_or_update_documents_1: |-
   // Define the type of our documents
   #[derive(Serialize, Deserialize, Debug)]
@@ -40,18 +40,18 @@ add_or_update_documents_1: |-
     fn get_uid(&self) -> &Self::UIDType { &self.id }
   }
 
-  let progress: Progress = movies.add_or_update(&[
+  let progress: Progress = movies.add_or_update(vec!(
     IncompleteMovie {
       id: 287947,
       title: "Shazam ⚡️".to_string()
     }
-  ], None).await.unwrap();
+  ), None).await.unwrap();
 delete_all_documents_1: |-
   let progress: Progress = movies.delete_all_documents().await.unwrap();
 delete_one_document_1: |-
   let progress: Progress = movies.delete_document(25684).await.unwrap();
 delete_documents_1: |-
-  let progress: Progress = movies.delete_documents(&[23488, 153738, 437035, 363869]).await.unwrap();
+  let progress: Progress = movies.delete_documents(vec!(23488, 153738, 437035, 363869)).await.unwrap();
 search_1: |-
   let results: SearchResults<Movie> = movies
     .search()
@@ -69,8 +69,8 @@ get_settings_1: |-
   let settings: Settings = movies.get_settings().await.unwrap();
 update_settings_1: |-
   let mut synonyms = std::collections::HashMap::new();
-  synonyms.insert(String::from("wolverine"), vec!["xmen", "logan"]);
-  synonyms.insert(String::from("logan"), vec!["wolverine"]);
+  synonyms.insert(String::from("wolverine"), vec!("xmen", "logan"));
+  synonyms.insert(String::from("logan"), vec!("wolverine"));
 
   let settings = Settings::new()
     .with_ranking_rules([
@@ -109,9 +109,9 @@ get_synonyms_1: |-
   let synonyms: HashMap<String, Vec<String>> = movies.get_synonyms().await.unwrap();
 update_synonyms_1: |-
   let mut synonyms = std::collections::HashMap::new();
-  synonyms.insert(String::from("wolverine"), vec![String::from("xmen"), String::from("logan")]);
-  synonyms.insert(String::from("logan"), vec![String::from("xmen"), String::from("wolverine")]);
-  synonyms.insert(String::from("wow"), vec![String::from("world of warcraft")]);
+  synonyms.insert(String::from("wolverine"), vec!(String::from("xmen"), String::from("logan")));
+  synonyms.insert(String::from("logan"), vec!(String::from("xmen"), String::from("wolverine")));
+  synonyms.insert(String::from("wow"), vec!(String::from("world of warcraft")));
 
   let progress: Progress = movies.set_synonyms(&synonyms).await.unwrap();
 reset_synonyms_1: |-
@@ -262,14 +262,14 @@ search_parameter_guide_limit_1: |-
 search_parameter_guide_retrieve_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("shifu")
-    .with_attributes_to_retrieve(Selectors::Some(&["overview", "title"]))
+    .with_attributes_to_retrieve(Selectors::Some(vec!("overview", "title")))
     .execute()
     .await
     .unwrap();
 search_parameter_guide_crop_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("shifu")
-    .with_attributes_to_crop(Selectors::Some(&[("overview", None)]))
+    .with_attributes_to_crop(Selectors::Some(vec!(AttributeToCrop::new("overview", None))))
     .with_crop_length(10)
     .execute()
     .await
@@ -280,7 +280,7 @@ search_parameter_guide_crop_1: |-
 search_parameter_guide_highlight_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("shifu")
-    .with_attributes_to_highlight(Selectors::Some(&["overview"]))
+    .with_attributes_to_highlight(Selectors::Some(vec!("overview")))
     .execute()
     .await
     .unwrap();
@@ -305,7 +305,7 @@ search_parameter_guide_matches_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("n")
     .with_filters(r#"title="Kung Fu Panda""#)
-    .with_attributes_to_highlight(Selectors::Some(&["overview"]))
+    .with_attributes_to_highlight(Selectors::Some(vec!("overview")))
     .with_matches(true)
     .execute()
     .await
@@ -315,8 +315,8 @@ search_parameter_guide_matches_1: |-
   let matched_info: Vec<&HashMap<String, Vec<MatchRange>>> = results.hits.iter().map(|r| r.matches_info.as_ref().unwrap()).collect();
 settings_guide_synonyms_1: |-
   let mut synonyms = HashMap::new();
-  synonyms.insert(String::from("sweater"), vec![String::from("jumper")]);
-  synonyms.insert(String::from("jumper"), vec![String::from("sweater")]);
+  synonyms.insert(String::from("sweater"), vec!(String::from("jumper")));
+  synonyms.insert(String::from("jumper"), vec!(String::from("sweater")));
 
   let tops: Index = client.get_index("tops").await.unwrap();
   let progress: Progress = tops.set_synonyms(&synonyms).await.unwrap();
@@ -370,12 +370,12 @@ documents_guide_add_movie_1: |-
   }
 
   // Add a document to our index
-  let progress: Progress = movies.add_documents(&[
+  let progress: Progress = movies.add_documents(vec!(
     IncompleteMovie {
       id: "123sq178".to_string(),
       title: "Amélie Poulain".to_string(),
     }
-  ], None).await.unwrap();
+  ), None).await.unwrap();
 search_guide_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("shifu")
@@ -504,14 +504,14 @@ faceted_search_update_settings_1: |-
 faceted_search_facet_filters_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("thriller")
-    .with_facet_filters(&[&["genres:Horror", "genres:Mystery"], &["director:Jordan Peele"]])
+    .with_facet_filters(vec!(vec!("genres:Horror", "genres:Mystery"), vec!("director:Jordan Peele")))
     .execute()
     .await
     .unwrap();
 faceted_search_facets_distribution_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("Batman")
-    .with_facets_distribution(Selectors::Some(&["genres"]))
+    .with_facets_distribution(Selectors::Some(vec!("genres")))
     .execute()
     .await
     .unwrap();
@@ -528,14 +528,14 @@ faceted_search_walkthrough_attributes_for_faceting_1: |-
 faceted_search_walkthrough_facet_filters_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("thriller")
-    .with_facet_filters(&[&["genres:Horror", "genres:Mystery"], &["director:Jordan Peele"]])
+    .with_facet_filters(vec!(vec!("genres:Horror", "genres:Mystery"), vec!("director:Jordan Peele")))
     .execute()
     .await
     .unwrap();
 faceted_search_walkthrough_facets_distribution_1: |-
   let results: SearchResults<Movie> = movies.search()
     .with_query("Batman")
-    .with_facets_distribution(Selectors::Some(&["genres"]))
+    .with_facets_distribution(Selectors::Some(vec!("genres")))
     .execute()
     .await
     .unwrap();

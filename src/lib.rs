@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! meilisearch-sdk = "0.8.0"
+//! meilisearch-sdk = "0.7.0"
 //! ```
 //!
 //! The following optional dependencies may also be useful:
@@ -97,6 +97,7 @@
 
 /// Module containing the Client struct.
 pub mod client;
+pub mod config;
 /// Module containing the Document trait.
 pub mod document;
 pub mod dumps;
