@@ -1,5 +1,11 @@
 use crate::{
-    client::Client, document::*, errors::Error, progress::*, request::*, search::*, Rc,
+    client::Client,
+    document::*,
+    errors::Error,
+    progress::*,
+    request::*,
+    search::*,
+    Rc,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -39,7 +45,7 @@ impl JsonIndex {
 /// // do something with the index
 /// # });
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Index {
     pub(crate) uid: Rc<String>,
     pub(crate) host: Rc<String>,
