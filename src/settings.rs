@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::{
-    indexes::Index, 
-    errors::Error, 
-    request::{request, Method}, 
+    indexes::Index,
+    errors::Error,
+    request::{request, Method},
     progress::{Progress, ProgressJson}
 };
 
@@ -154,10 +154,9 @@ impl<const N: usize> IntoVecString for [&str; N] {
 
 #[allow(missing_docs)]
 impl Settings {
-    
     /// Create undefined settings
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Settings {
+        Settings {
             synonyms: None,
             stop_words: None,
             ranking_rules: None,
@@ -167,11 +166,10 @@ impl Settings {
             displayed_attributes: None,
         }
     }
-
-    pub fn with_synonyms<S: AsRef<str>, U: IntoVecString>(self, synonyms: HashMap<S, U>) -> Settings {
+    pub fn with_synonyms<T: Into<String>, U: IntoVecString>(self, synonyms: HashMap<T, U>) -> Settings {
         let mut converted_synonyms = HashMap::new();
         for (key, array) in synonyms {
-            let key: String = key.as_ref().to_string();
+            let key: String = key.into();
             let array: Vec<String> = array.convert();
             converted_synonyms.insert(key, array);
         }
@@ -181,14 +179,12 @@ impl Settings {
             ..self
         }
     }
-
     pub fn with_stop_words(self, stop_words: impl IntoVecString) -> Settings {
         Settings {
             stop_words: Some(stop_words.convert()),
             ..self
         }
     }
-
     pub fn with_ranking_rules<T: IntoVecString>(self, ranking_rules: T) -> Settings
     {
         Settings {
@@ -196,35 +192,30 @@ impl Settings {
             ..self
         }
     }
-
     pub fn with_attributes_for_faceting<T: IntoVecString>(self, attributes_for_faceting: T) -> Settings {
         Settings {
             attributes_for_faceting: Some(attributes_for_faceting.convert()),
             ..self
         }
     }
-
-    pub fn with_distinct_attribute<S: AsRef<str>>(self, distinct_attribute: S) -> Settings {
+    pub fn with_distinct_attribute<T: Into<String>>(self, distinct_attribute: T) -> Settings {
         Settings {
-            distinct_attribute: Some(distinct_attribute.as_ref().into()),
+            distinct_attribute: Some(distinct_attribute.into()),
             ..self
         }
     }
-
     pub fn with_searchable_attributes<T: IntoVecString>(self, searchable_attributes: T) -> Settings {
         Settings {
             searchable_attributes: Some(searchable_attributes.convert()),
             ..self
         }
     }
-
     pub fn with_displayed_attributes<T: IntoVecString>(self, displayed_attributes: T) -> Settings {
         Settings {
             displayed_attributes: Some(displayed_attributes.convert()),
             ..self
         }
     }
-
 }
 
 impl Index {
@@ -240,8 +231,8 @@ impl Index {
     /// ```
     pub async fn get_settings(&self) -> Result<Settings, Error> {
         Ok(request::<(), Settings>(
-            &format!("{}/indexes/{}/settings", &self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -259,8 +250,8 @@ impl Index {
     /// ```
     pub async fn get_synonyms(&self) -> Result<HashMap<String, Vec<String>>, Error> {
         Ok(request::<(), HashMap<String, Vec<String>>>(
-            &format!("{}/indexes/{}/settings/synonyms", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/synonyms", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -278,8 +269,8 @@ impl Index {
     /// ```
     pub async fn get_stop_words(&self) -> Result<Vec<String>, Error> {
         Ok(request::<(), Vec<String>>(
-            &format!("{}/indexes/{}/settings/stop-words", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/stop-words", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -297,8 +288,8 @@ impl Index {
     /// ```
     pub async fn get_ranking_rules(&self) -> Result<Vec<String>, Error> {
         Ok(request::<(), Vec<String>>(
-            &format!("{}/indexes/{}/settings/ranking-rules", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/ranking-rules", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -316,8 +307,8 @@ impl Index {
     /// ```
     pub async fn get_attributes_for_faceting(&self) -> Result<Vec<String>, Error> {
         Ok(request::<(), Vec<String>>(
-            &format!("{}/indexes/{}/settings/attributes-for-faceting", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/attributes-for-faceting", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -335,8 +326,8 @@ impl Index {
     /// ```
     pub async fn get_distinct_attribute(&self) -> Result<Option<String>, Error> {
         Ok(request::<(), Option<String>>(
-            &format!("{}/indexes/{}/settings/distinct-attribute", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/distinct-attribute", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -354,8 +345,8 @@ impl Index {
     /// ```
     pub async fn get_searchable_attributes(&self) -> Result<Vec<String>, Error> {
         Ok(request::<(), Vec<String>>(
-            &format!("{}/indexes/{}/settings/searchable-attributes", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/searchable-attributes", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -373,8 +364,8 @@ impl Index {
     /// ```
     pub async fn get_displayed_attributes(&self) -> Result<Vec<String>, Error> {
         Ok(request::<(), Vec<String>>(
-            &format!("{}/indexes/{}/settings/displayed-attributes", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/displayed-attributes", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -402,8 +393,8 @@ impl Index {
     /// ```
     pub async fn set_settings(&self, settings: &Settings) -> Result<Progress, Error> {
         Ok(request::<&Settings, ProgressJson>(
-            &format!("{}/indexes/{}/settings", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings", self.host, self.uid),
+            &self.api_key,
             Method::Post(settings),
             202,
         ).await?
@@ -432,8 +423,8 @@ impl Index {
     /// ```
     pub async fn set_synonyms(&self, synonyms: &HashMap<String, Vec<String>>) -> Result<Progress, Error> {
         Ok(request::<&HashMap<String, Vec<String>>, ProgressJson>(
-            &format!("{}/indexes/{}/settings/synonyms", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/synonyms", self.host, self.uid),
+            &self.api_key,
             Method::Post(synonyms),
             202,
         ).await?
@@ -458,8 +449,8 @@ impl Index {
     /// ```
     pub async fn set_stop_words(&self, stop_words: impl IntoVecString) -> Result<Progress, Error> {
         Ok(request::<Vec<String>, ProgressJson>(
-            &format!("{}/indexes/{}/settings/stop-words", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/stop-words", self.host, self.uid),
+            &self.api_key,
             Method::Post(stop_words.convert()),
             202,
         ).await?
@@ -493,8 +484,8 @@ impl Index {
     /// ```
     pub async fn set_ranking_rules(&self, ranking_rules: impl IntoVecString) -> Result<Progress, Error> {
         Ok(request::<Vec<String>, ProgressJson>(
-            &format!("{}/indexes/{}/settings/ranking-rules", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/ranking-rules", self.host, self.uid),
+            &self.api_key,
             Method::Post(ranking_rules.convert()),
             202,
         ).await?
@@ -519,8 +510,8 @@ impl Index {
     /// ```
     pub async fn set_attributes_for_faceting(&self, attributes_for_faceting: impl IntoVecString) -> Result<Progress, Error> {
         Ok(request::<Vec<String>, ProgressJson>(
-            &format!("{}/indexes/{}/settings/attributes-for-faceting", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/attributes-for-faceting", self.host, self.uid),
+            &self.api_key,
             Method::Post(attributes_for_faceting.convert()),
             202,
         ).await?
@@ -542,11 +533,11 @@ impl Index {
     /// # progress.get_status().await.unwrap();
     /// # });
     /// ```
-    pub async fn set_distinct_attribute(&self, distinct_attribute: impl AsRef<str>) -> Result<Progress, Error> {
+    pub async fn set_distinct_attribute(&self, distinct_attribute: impl Into<String>) -> Result<Progress, Error> {
         Ok(request::<String, ProgressJson>(
-            &format!("{}/indexes/{}/settings/distinct-attribute", self.config.host, self.uid),
-            &self.config.api_key,
-            Method::Post(distinct_attribute.as_ref().into()),
+            &format!("{}/indexes/{}/settings/distinct-attribute", self.host, self.uid),
+            &self.api_key,
+            Method::Post(distinct_attribute.into()),
             202,
         ).await?
         .into_progress(self))
@@ -569,8 +560,8 @@ impl Index {
     /// ```
     pub async fn set_searchable_attributes(&self, searchable_attributes: impl IntoVecString) -> Result<Progress, Error> {
         Ok(request::<Vec<String>, ProgressJson>(
-            &format!("{}/indexes/{}/settings/searchable-attributes", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/searchable-attributes", self.host, self.uid),
+            &self.api_key,
             Method::Post(searchable_attributes.convert()),
             202,
         ).await?
@@ -594,8 +585,8 @@ impl Index {
     /// ```
     pub async fn set_displayed_attributes(&self, displayed_attributes: impl IntoVecString) -> Result<Progress, Error> {
         Ok(request::<Vec<String>, ProgressJson>(
-            &format!("{}/indexes/{}/settings/displayed-attributes", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/displayed-attributes", self.host, self.uid),
+            &self.api_key,
             Method::Post(displayed_attributes.convert()),
             202,
         ).await?
@@ -620,8 +611,8 @@ impl Index {
     /// ```
     pub async fn reset_settings(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -645,8 +636,8 @@ impl Index {
     /// ```
     pub async fn reset_synonyms(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/synonyms", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/synonyms", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -670,8 +661,8 @@ impl Index {
     /// ```
     pub async fn reset_stop_words(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/stop-words", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/stop-words", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -696,8 +687,8 @@ impl Index {
     /// ```
     pub async fn reset_ranking_rules(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/ranking-rules", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/ranking-rules", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -721,8 +712,8 @@ impl Index {
     /// ```
     pub async fn reset_attributes_for_faceting(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/attributes-for-faceting", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/attributes-for-faceting", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -746,8 +737,8 @@ impl Index {
     /// ```
     pub async fn reset_distinct_attribute(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/distinct-attribute", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/distinct-attribute", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -771,8 +762,8 @@ impl Index {
     /// ```
     pub async fn reset_searchable_attributes(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/searchable-attributes", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/searchable-attributes", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -796,8 +787,8 @@ impl Index {
     /// ```
     pub async fn reset_displayed_attributes(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/settings/displayed-attributes", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/settings/displayed-attributes", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?

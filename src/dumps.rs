@@ -84,8 +84,8 @@ impl Client {
     /// ```
     pub async fn create_dump(&self) -> Result<DumpInfo, Error> {
         request::<(), DumpInfo>(
-            &format!("{}/dumps", self.config.host),
-            &self.config.api_key,
+            &format!("{}/dumps", self.host),
+            &self.api_key,
             Method::Post(()),
             202,
         )
@@ -109,10 +109,10 @@ impl Client {
     /// let dump_info = client.get_dump_status(&dump_info.uid).await.unwrap();
     /// # });
     /// ```
-    pub async fn get_dump_status(&self, dump_uid: &str) -> Result<DumpInfo, Error> {
+    pub async fn get_dump_status(&self, dump_uid: impl AsRef<str>) -> Result<DumpInfo, Error> {
         request::<(), DumpInfo>(
-            &format!("{}/dumps/{}/status", self.config.host, dump_uid),
-            &self.config.api_key,
+            &format!("{}/dumps/{}/status", self.host, dump_uid.as_ref()),
+            &self.api_key,
             Method::Get,
             200,
         )
@@ -128,7 +128,7 @@ pub async fn create_dump(client: &Client) -> Result<DumpInfo, Error> {
 /// Alias for [get_dump_status](Client::get_dump_status).
 pub async fn get_dump_status(
     client: &Client,
-    dump_uid: &str,
+    dump_uid: impl AsRef<str>,
 ) -> Result<DumpInfo, Error> {
     client.get_dump_status(dump_uid).await
 }

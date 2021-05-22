@@ -8,18 +8,21 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 
 mod document;
 use crate::document::Crate;
 
-static CLIENT: Lazy<Client> = Lazy::new(|| {
-    Client::new("https://finding-demos.meilisearch.com", "2b902cce4f868214987a9f3c7af51a69fa660d74a785bed258178b96e3480bb3")
-});
+lazy_static! {
+    static ref CLIENT: Client = Client::new(
+        "https://finding-demos.meilisearch.com",
+        "2b902cce4f868214987a9f3c7af51a69fa660d74a785bed258178b96e3480bb3",
+    );
+}
 
 struct Model {
     link: Rc<ComponentLink<Self>>,
-    index: Index, // The lifetime of Index is the lifetime of the client
+    index: Rc<Index>,
     results: Vec<Crate>,
     processing_time_ms: usize,
 
@@ -48,7 +51,7 @@ impl Component for Model {
             // The assume_index method avoids checking the existence of the index.
             // It won't make any HTTP request so the function is not async so it's easier to use.
             // Use only if you are sure that the index exists.
-            index: CLIENT.assume_index("crates"),
+            index: Rc::new(CLIENT.assume_index("crates")),
             results: Vec::new(),
             processing_time_ms: 0,
 
@@ -61,7 +64,7 @@ impl Component for Model {
         match msg {
             // Sent when the value of the text input changed (so we have to make a new request)
             Msg::Input(value) => {
-                let index = self.index.clone();
+                let index = Rc::clone(&self.index);
                 let link = Rc::clone(&self.link);
                 self.latest_sent_request_id += 1;
                 let request_id = self.latest_sent_request_id;
@@ -72,7 +75,7 @@ impl Component for Model {
                     let fresh_results: SearchResults<Crate> = index
                         .search()
                         .with_query(&value)
-                        .with_attributes_to_highlight::<&str>(All)
+                        .with_attributes_to_highlight(All)
                         .execute()
                         .await
                         .expect("Failed to execute query");

@@ -1,10 +1,5 @@
 use crate::{
-    config::Config, 
-    document::*, 
-    errors::Error, 
-    progress::*, 
-    request::*, 
-    search::*,
+    client::Client, document::*, errors::Error, progress::*, request::*, search::*, Rc,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -20,10 +15,11 @@ pub(crate) struct JsonIndex {
 }
 
 impl JsonIndex {
-    pub(crate) fn into_index(self, config: Config) -> Index {
+    pub(crate) fn into_index(self, client: &Client) -> Index {
         Index {
-            uid: self.uid,
-            config,
+            uid: Rc::new(self.uid),
+            host: Rc::clone(&client.host),
+            api_key: Rc::clone(&client.api_key)
         }
     }
 }
@@ -43,21 +39,22 @@ impl JsonIndex {
 /// // do something with the index
 /// # });
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Index {
-    pub(crate) uid: String,
-    pub(crate) config: Config,
+    pub(crate) uid: Rc<String>,
+    pub(crate) host: Rc<String>,
+    pub(crate) api_key: Rc<String>,
 }
 
 impl Index {
     /// Set the primary key of the index.
     ///
     /// If you prefer, you can use the method [set_primary_key](#method.set_primary_key), which is an alias.
-    pub async fn update(&self, primary_key: &str) -> Result<(), Error> {
+    pub async fn update(&self, primary_key: impl AsRef<str>) -> Result<(), Error> {
         request::<serde_json::Value, JsonIndex>(
-            &format!("{}/indexes/{}", self.config.host, self.uid),
-            &self.config.api_key,
-            Method::Put(json!({ "primaryKey": primary_key })),
+            &format!("{}/indexes/{}", self.host, self.uid),
+            &self.api_key,
+            Method::Put(json!({ "primaryKey": primary_key.as_ref() })),
             200,
         ).await?;
         Ok(())
@@ -80,8 +77,8 @@ impl Index {
     /// ```
     pub async fn delete(self) -> Result<(), Error> {
         Ok(request::<(), ()>(
-            &format!("{}/indexes/{}", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             204,
         ).await?)
@@ -124,15 +121,15 @@ impl Index {
     /// ```
     pub async fn execute_query<T: 'static + DeserializeOwned>(
         &self,
-        query: &Query,
+        query: &Query<'_>,
     ) -> Result<SearchResults<T>, Error> {
         Ok(request::<&Query, SearchResults<T>>(
             &format!(
                 "{}/indexes/{}/search",
-                self.config.host,
+                self.host,
                 self.uid
             ),
-            &self.config.api_key,
+            &self.api_key,
             Method::Post(query),
             200,
         ).await?)
@@ -228,9 +225,9 @@ impl Index {
         Ok(request::<(), T>(
             &format!(
                 "{}/indexes/{}/documents/{}",
-                self.config.host, self.uid, uid
+                self.host, self.uid, uid
             ),
-            &self.config.api_key,
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -286,7 +283,7 @@ impl Index {
         limit: Option<usize>,
         attributes_to_retrieve: Option<&str>,
     ) -> Result<Vec<T>, Error> {
-        let mut url = format!("{}/indexes/{}/documents?", self.config.host, self.uid);
+        let mut url = format!("{}/indexes/{}/documents?", self.host, self.uid);
         if let Some(offset) = offset {
             url.push_str("offset=");
             url.push_str(offset.to_string().as_str());
@@ -299,11 +296,11 @@ impl Index {
         }
         if let Some(attributes_to_retrieve) = attributes_to_retrieve {
             url.push_str("attributesToRetrieve=");
-            url.push_str(attributes_to_retrieve.to_string().as_str());
+            url.push_str(attributes_to_retrieve);
         }
         Ok(request::<(), Vec<T>>(
             &url,
-            &self.config.api_key,
+            &self.api_key,
             Method::Get,
             200,
         ).await?)
@@ -374,15 +371,15 @@ impl Index {
         let url = if let Some(primary_key) = primary_key {
             format!(
                 "{}/indexes/{}/documents?primaryKey={}",
-                self.config.host, self.uid, primary_key
+                self.host, self.uid, primary_key
             )
         } else {
-            format!("{}/indexes/{}/documents", self.config.host, self.uid)
+            format!("{}/indexes/{}/documents", self.host, self.uid)
         };
         Ok(
             request::<&[T], ProgressJson>(
                 &url,
-                &self.config.api_key,
+                &self.api_key,
                 Method::Post(documents),
                 202,
             ).await?
@@ -457,18 +454,18 @@ impl Index {
     pub async fn add_or_update<T: Document>(
         &self,
         documents: &[T],
-        primary_key: Option<&str>,
+        primary_key: Option<impl AsRef<str>>,
     ) -> Result<Progress, Error> {
         let url = if let Some(primary_key) = primary_key {
             format!(
                 "{}/indexes/{}/documents?primaryKey={}",
-                self.config.host, self.uid, primary_key
+                self.host, self.uid, primary_key.as_ref()
             )
         } else {
-            format!("{}/indexes/{}/documents", self.config.host, self.uid)
+            format!("{}/indexes/{}/documents", self.host, self.uid)
         };
         Ok(
-            request::<&[T], ProgressJson>(&url, &self.config.api_key, Method::Put(documents), 202).await?
+            request::<&[T], ProgressJson>(&url, &self.api_key, Method::Put(documents), 202).await?
                 .into_progress(self),
         )
     }
@@ -511,8 +508,8 @@ impl Index {
     /// ```
     pub async fn delete_all_documents(&self) -> Result<Progress, Error> {
         Ok(request::<(), ProgressJson>(
-            &format!("{}/indexes/{}/documents", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/documents", self.host, self.uid),
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -558,9 +555,9 @@ impl Index {
         Ok(request::<(), ProgressJson>(
             &format!(
                 "{}/indexes/{}/documents/{}",
-                self.config.host, self.uid, uid
+                self.host, self.uid, uid
             ),
-            &self.config.api_key,
+            &self.api_key,
             Method::Delete,
             202,
         ).await?
@@ -610,9 +607,9 @@ impl Index {
         Ok(request::<&[T], ProgressJson>(
             &format!(
                 "{}/indexes/{}/documents/delete-batch",
-                self.config.host, self.uid
+                self.host, self.uid
             ),
-            &self.config.api_key,
+            &self.api_key,
             Method::Post(uids),
             202,
         ).await?
@@ -620,7 +617,7 @@ impl Index {
     }
 
     /// Alias for the [update method](#method.update).
-    pub async fn set_primary_key(&self, primary_key: &str) -> Result<(), Error> {
+    pub async fn set_primary_key(&self, primary_key: impl AsRef<str>) -> Result<(), Error> {
         self.update(primary_key).await
     }
 
@@ -674,9 +671,9 @@ impl Index {
         request::<(), Vec<UpdateStatus>>(
             &format!(
                 "{}/indexes/{}/updates",
-                self.config.host, self.uid
+                self.host, self.uid
             ),
-            &self.config.api_key,
+            &self.api_key,
             Method::Get,
             200,
         )
@@ -699,8 +696,8 @@ impl Index {
     /// ```
     pub async fn get_stats(&self) -> Result<IndexStats, Error> {
         request::<serde_json::Value, IndexStats>(
-            &format!("{}/indexes/{}/stats", self.config.host, self.uid),
-            &self.config.api_key,
+            &format!("{}/indexes/{}/stats", self.host, self.uid),
+            &self.api_key,
             Method::Get,
             200,
         ).await

@@ -59,17 +59,17 @@ fn serialize_with_wildcard<S: Serializer, T: Serialize>(
 }
 
 fn serialize_attributes_to_crop_with_wildcard<S: Serializer>(
-    data: &Option<Selectors<Vec<AttributeToCrop>>>,
+    data: &Option<Selectors<&[AttributeToCrop]>>,
     s: S,
 ) -> Result<S::Ok, S::Error> {
     match data {
         Some(Selectors::All) => ["*"].serialize(s),
         Some(Selectors::Some(data)) => {
             let mut results = Vec::new();
-            for attr in data.iter() {
+            for (name, value) in data.iter() {
                 let mut result = String::new();
-                result.push_str(&attr.key);
-                if let Some(value) = attr.value {
+                result.push_str(name);
+                if let Some(value) = value {
                     result.push(':');
                     result.push_str(value.to_string().as_str());
                 }
@@ -91,20 +91,7 @@ pub enum Selectors<T> {
     All,
 }
 
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct AttributeToCrop {
-    pub key: String,
-    pub value: Option<usize>,
-}
-
-impl AttributeToCrop {
-
-    pub fn new<S: AsRef<str>>(key: S, value: Option<usize>) -> Self {
-        Self { key: key.as_ref().into(), value: value }
-    }
-
-}
+type AttributeToCrop<'a> = (&'a str, Option<usize>);
 
 /// A struct representing a query.
 /// You can add search parameters using the builder syntax.
@@ -135,13 +122,13 @@ impl AttributeToCrop {
 /// ```
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Query {
+pub struct Query<'a> {
     #[serde(skip_serializing)]
-    index: Index,
+    index: &'a Index,
     /// The text that will be searched for among the documents.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "q")]
-    pub query: Option<String>,
+    pub query: Option<&'a str>,
     /// The number of documents to skip.
     /// If the value of the parameter `offset` is `n`, the `n` first documents (ordered by relevance) will not be returned.
     /// This is helpful for pagination.
@@ -160,32 +147,32 @@ pub struct Query {
     /// Filters applied to documents.
     /// Read the [dedicated guide](https://docs.meilisearch.com/reference/features/filtering.html) to learn the syntax.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filters: Option<String>,
+    pub filters: Option<&'a str>,
     /// Facet names and values to filter on.
     /// Read [this page](https://docs.meilisearch.com/reference/features/search_parameters.html#facet-filters) for a complete explanation.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub facet_filters: Option<Vec<Vec<String>>>,
+    pub facet_filters: Option<&'a [&'a [&'a str]]>,
     /// Facets for which to retrieve the matching count.
     ///
     /// Can be set to a [wildcard value](enum.Selectors.html#variant.All) that will select all existing attributes.
     /// Default: all attributes found in the documents.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "serialize_with_wildcard")]
-    pub facets_distribution: Option<Selectors<Vec<String>>>,
+    pub facets_distribution: Option<Selectors<&'a [&'a str]>>,
     /// Attributes to display in the returned documents.
     ///
     /// Can be set to a [wildcard value](enum.Selectors.html#variant.All) that will select all existing attributes.
     /// Default: all attributes found in the documents.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "serialize_with_wildcard")]
-    pub attributes_to_retrieve: Option<Selectors<Vec<String>>>,
+    pub attributes_to_retrieve: Option<Selectors<&'a [&'a str]>>,
     /// Attributes whose values have to be cropped.
     /// Attributes are composed by the attribute name and an optional `usize` that overwrites the `crop_length` parameter.
     ///
     /// Can be set to a [wildcard value](enum.Selectors.html#variant.All) that will select all existing attributes.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "serialize_attributes_to_crop_with_wildcard")]
-    pub attributes_to_crop: Option<Selectors<Vec<AttributeToCrop>>>,
+    pub attributes_to_crop: Option<Selectors<&'a [AttributeToCrop<'a>]>>,
     /// Number of characters to keep on each side of the start of the matching word.
     /// See [attributes_to_crop](#structfield.attributes_to_crop).
     ///
@@ -197,7 +184,7 @@ pub struct Query {
     /// Can be set to a [wildcard value](enum.Selectors.html#variant.All) that will select all existing attributes.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "serialize_with_wildcard")]
-    pub attributes_to_highlight: Option<Selectors<Vec<String>>>,
+    pub attributes_to_highlight: Option<Selectors<&'a [&'a str]>>,
     /// Defines whether an object that contains information about the matches should be returned or not.
     ///
     /// Default: `false`
@@ -206,11 +193,10 @@ pub struct Query {
 }
 
 #[allow(missing_docs)]
-impl Query {
-
-    pub fn new(index: &Index) -> Self {
-        Self {
-            index: index.clone(),
+impl<'a> Query<'a> {
+    pub fn new(index: &'a Index) -> Query<'a> {
+        Query {
+            index,
             query: None,
             offset: None,
             limit: None,
@@ -224,119 +210,72 @@ impl Query {
             matches: None,
         }
     }
-
-    pub fn with_query<S: AsRef<str>>(&mut self, query: S) -> &mut Query {
-        self.query = Some(query.as_ref().to_string());
+    pub fn with_query<'b>(&'b mut self, query: &'a str) -> &'b mut Query<'a> {
+        self.query = Some(query);
         self
     }
-
-    pub fn with_offset(&mut self, offset: usize) -> &mut Query {
+    pub fn with_offset<'b>(&'b mut self, offset: usize) -> &'b mut Query<'a> {
         self.offset = Some(offset);
         self
     }
-
-    pub fn with_limit(&mut self, limit: usize) -> &mut Query {
+    pub fn with_limit<'b>(&'b mut self, limit: usize) -> &'b mut Query<'a> {
         self.limit = Some(limit);
         self
     }
-
-    pub fn with_filters<S: AsRef<str>>(&mut self, filters: S) -> &mut Query {
-        self.filters = Some(filters.as_ref().to_string());
+    pub fn with_filters<'b>(&'b mut self, filters: &'a str) -> &'b mut Query<'a> {
+        self.filters = Some(filters);
         self
     }
-
-    pub fn with_facet_filters<S: AsRef<str>>(
-        &mut self,
-        facet_filters: Vec<Vec<S>>,
-    ) -> & mut Query {
-        self.facet_filters = Some(
-            facet_filters
-                .iter()
-                .map(|v| v.iter().map(|v| v.as_ref().into()).collect())
-                .collect()
-            );
+    pub fn with_facet_filters<'b>(
+        &'b mut self,
+        facet_filters: &'a [&'a [&'a str]],
+    ) -> &'b mut Query<'a> {
+        self.facet_filters = Some(facet_filters);
         self
     }
-
-    pub fn with_facets_distribution<S: AsRef<str>>(
-        &mut self,
-        facets_distribution: Selectors<Vec<S>>,
-    ) -> & mut Query {
-        let facets_distribution = match facets_distribution {
-            Selectors::All => Selectors::All,
-            Selectors::Some(data) => 
-                Selectors::Some(
-                    data
-                        .iter()
-                        .map(|data| data.as_ref().into())
-                        .collect()
-                    ),
-        };
+    pub fn with_facets_distribution<'b>(
+        &'b mut self,
+        facets_distribution: Selectors<&'a [&'a str]>,
+    ) -> &'b mut Query<'a> {
         self.facets_distribution = Some(facets_distribution);
         self
     }
-
-    pub fn with_attributes_to_retrieve<S: AsRef<str>>(
-        &mut self,
-        attributes_to_retrieve: Selectors<Vec<S>>,
-    ) -> &mut Query {
-        let attributes_to_retrieve = match attributes_to_retrieve {
-            Selectors::All => Selectors::All,
-            Selectors::Some(data) => 
-                Selectors::Some(
-                    data
-                        .iter()
-                        .map(|data| data.as_ref().into())
-                        .collect()
-                    ),
-        };
+    pub fn with_attributes_to_retrieve<'b>(
+        &'b mut self,
+        attributes_to_retrieve: Selectors<&'a [&'a str]>,
+    ) -> &'b mut Query<'a> {
         self.attributes_to_retrieve = Some(attributes_to_retrieve);
         self
     }
-
-    pub fn with_attributes_to_crop(
-        &mut self,
-        attributes_to_crop: Selectors<Vec<AttributeToCrop>>,
-    ) -> &mut Query {
+    pub fn with_attributes_to_crop<'b>(
+        &'b mut self,
+        attributes_to_crop: Selectors<&'a [(&'a str, Option<usize>)]>,
+    ) -> &'b mut Query<'a> {
         self.attributes_to_crop = Some(attributes_to_crop);
         self
     }
-
-    pub fn with_attributes_to_highlight<S: AsRef<str>>(
-        &mut self,
-        attributes_to_highlight: Selectors<Vec<S>>,
-    ) -> &mut Query {
-        let attributes_to_highlight = match attributes_to_highlight {
-            Selectors::All => Selectors::All,
-            Selectors::Some(data) => 
-                Selectors::Some(
-                    data
-                        .iter()
-                        .map(|data| data.as_ref().into())
-                        .collect()
-                    ),
-        };
+    pub fn with_attributes_to_highlight<'b>(
+        &'b mut self,
+        attributes_to_highlight: Selectors<&'a [&'a str]>,
+    ) -> &'b mut Query<'a> {
         self.attributes_to_highlight = Some(attributes_to_highlight);
         self
     }
-
-    pub fn with_crop_length(&mut self, crop_length: usize) -> &mut Query {
+    pub fn with_crop_length<'b>(&'b mut self, crop_length: usize) -> &'b mut Query<'a> {
         self.crop_length = Some(crop_length);
         self
     }
-
-    pub fn with_matches(&mut self, matches: bool) -> &mut Query {
+    pub fn with_matches<'b>(&'b mut self, matches: bool) -> &'b mut Query<'a> {
         self.matches = Some(matches);
         self
     }
-
-    pub fn build(&mut self) -> Query {
+    pub fn build(&mut self) -> Query<'a> {
         self.clone()
     }
 
     /// Execute the query and fetch the results.
     pub async fn execute<T: 'static + DeserializeOwned>(
-        &self
+        &'a self,
     ) -> Result<SearchResults<T>, Error> {
         self.index.execute_query::<T>(&self).await
     }
@@ -344,7 +283,6 @@ impl Query {
 
 #[cfg(test)]
 mod tests {
-
     use crate::{client::*, document, search::*};
     use serde::{Deserialize, Serialize};
     use std::thread::sleep;
@@ -367,10 +305,7 @@ mod tests {
     }
 
     #[allow(unused_must_use)]
-    async fn setup_test_index<S: AsRef<str>>(client: &Client, name: S) -> Index {
-
-        let name: &str = name.as_ref();
-
+    async fn setup_test_index<'a>(client: &'a Client, name: &'a str) -> Index {
         // try to delete
         client.delete_index(name).await;
 
@@ -458,17 +393,17 @@ mod tests {
         let index = setup_test_index(&client, "test_query_facet_filters").await;
 
         let mut query = Query::new(&index);
-        query.with_facet_filters::<&str>(vec!(vec!("kind:text")));
+        query.with_facet_filters(&[&["kind:title"]]);
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(results.hits.len(), 8);
 
         let mut query = Query::new(&index);
-        query.with_facet_filters::<&str>(vec!(vec!("kind:text")));
+        query.with_facet_filters(&[&["kind:text"]]);
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(results.hits.len(), 2);
 
         let mut query = Query::new(&index);
-        query.with_facet_filters::<&str>(vec!(vec!("kind:text", "kind:title")));
+        query.with_facet_filters(&[&["kind:text", "kind:title"]]);
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(results.hits.len(), 10);
 
@@ -484,7 +419,7 @@ mod tests {
         let index = setup_test_index(&client, "test_query_facet_distribution").await;
 
         let mut query = Query::new(&index);
-        query.with_facets_distribution::<&str>(Selectors::All);
+        query.with_facets_distribution(Selectors::All);
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(
             results
@@ -498,8 +433,8 @@ mod tests {
         );
 
         let mut query = Query::new(&index);
-        query.with_facets_distribution::<&str>(Selectors::Some(vec!("kind")));
-        query.with_facet_filters(vec!(vec!("kind:text")));
+        query.with_facets_distribution(Selectors::Some(&["kind"]));
+        query.with_facet_filters(&[&["kind:text"]]);
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(
             results
@@ -536,14 +471,14 @@ mod tests {
 
         let results: SearchResults<Document> = index
             .search()
-            .with_attributes_to_retrieve::<&str>(Selectors::All)
+            .with_attributes_to_retrieve(Selectors::All)
             .execute()
             .await
             .unwrap();
         assert_eq!(results.hits.len(), 10);
 
         let mut query = Query::new(&index);
-        query.with_attributes_to_retrieve(Selectors::Some(vec!("kind", "id"))); // omit the "value" field
+        query.with_attributes_to_retrieve(Selectors::Some(&["kind", "id"])); // omit the "value" field
         assert!(index.execute_query::<Document>(&query).await.is_err()); // error: missing "value" field
 
         client
@@ -569,7 +504,7 @@ mod tests {
 
         let mut query = Query::new(&index);
         query.with_query("lorem ipsum");
-        query.with_attributes_to_crop(Selectors::Some(vec!(AttributeToCrop::new("value", Some(50)), AttributeToCrop::new("kind", None))));
+        query.with_attributes_to_crop(Selectors::Some(&[("value", Some(50)), ("kind", None)]));
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(
             results.hits[0].formatted_result.as_ref().unwrap(),
@@ -626,7 +561,7 @@ mod tests {
 
         let mut query = Query::new(&index);
         query.with_query("dolor text");
-        query.with_attributes_to_highlight::<&str>(Selectors::All);
+        query.with_attributes_to_highlight(Selectors::All);
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(
             results.hits[0].formatted_result.as_ref().unwrap(),
@@ -639,7 +574,7 @@ mod tests {
 
         let mut query = Query::new(&index);
         query.with_query("dolor text");
-        query.with_attributes_to_highlight(Selectors::Some(vec!("value")));
+        query.with_attributes_to_highlight(Selectors::Some(&["value"]));
         let results: SearchResults<Document> = index.execute_query(&query).await.unwrap();
         assert_eq!(
             results.hits[0].formatted_result.as_ref().unwrap(),

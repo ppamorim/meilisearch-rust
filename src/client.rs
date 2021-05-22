@@ -1,4 +1,4 @@
-use crate::{config::*, errors::*, indexes::*, request::*};
+use crate::{errors::*, indexes::*, request::*, Rc};
 use serde_json::{json, Value};
 use serde::{Deserialize};
 use std::collections::HashMap;
@@ -6,7 +6,8 @@ use std::collections::HashMap;
 /// The top-level struct of the SDK, representing a client containing [indexes](../indexes/struct.Index.html).
 #[derive(Debug)]
 pub struct Client {
-    pub(crate) config: Config,
+    pub(crate) host: Rc<String>,
+    pub(crate) api_key: Rc<String>,
 }
 
 impl Client {
@@ -21,8 +22,11 @@ impl Client {
     /// // create the client
     /// let client = Client::new("http://localhost:7700", "masterKey");
     /// ```
-    pub fn new<S: AsRef<str>>(host: S, api_key: S) -> Self {
-        Self { config: Config::new(host, api_key) }
+    pub fn new(host: impl Into<String>, api_key: impl Into<String>) -> Client {
+        Client {
+            host: Rc::new(host.into()),
+            api_key: Rc::new(api_key.into())
+        }
     }
 
     /// List all [indexes](../indexes/struct.Index.html).
@@ -41,15 +45,15 @@ impl Client {
     /// ```
     pub async fn list_all_indexes(&self) -> Result<Vec<Index>, Error> {
         let json_indexes = request::<(), Vec<JsonIndex>>(
-            &format!("{}/indexes", self.config.host),
-            &self.config.api_key,
+            &format!("{}/indexes", self.host),
+            &self.api_key,
             Method::Get,
             200,
         ).await?;
 
-        let mut indexes = Vec::with_capacity(json_indexes.len());
+        let mut indexes = Vec::new();
         for json_index in json_indexes {
-            indexes.push(json_index.into_index(self.config.clone()))
+            indexes.push(json_index.into_index(self))
         }
 
         Ok(indexes)
@@ -71,21 +75,22 @@ impl Client {
     /// let movies = client.get_index("movies").await.unwrap();
     /// # });
     /// ```
-    pub async fn get_index<S: AsRef<str>>(&self, uid: S) -> Result<Index, Error> {
+    pub async fn get_index(&self, uid: impl AsRef<str>) -> Result<Index, Error> {
         Ok(request::<(), JsonIndex>(
-            &format!("{}/indexes/{}", self.config.host, uid.as_ref()),
-            &self.config.api_key,
+            &format!("{}/indexes/{}", self.host, uid.as_ref()),
+            &self.api_key,
             Method::Get,
             200,
         ).await?
-        .into_index(self.config.clone()))
+        .into_index(self))
     }
 
     /// Assume that an [index](../indexes/struct.Index.html) exist and create a corresponding object without any check.
-    pub fn assume_index<S: AsRef<str>>(&self, uid: S) -> Index {
+    pub fn assume_index(&self, uid: impl Into<String>) -> Index {
         Index {
-            config: self.config.clone(),
-            uid: uid.as_ref().into(),
+            uid: Rc::new(uid.into()),
+            host: Rc::clone(&self.host),
+            api_key: Rc::clone(&self.api_key)
         }
     }
 
@@ -107,41 +112,40 @@ impl Client {
     /// let movies = client.create_index("movies", None).await;
     /// # });
     /// ```
-    pub async fn create_index<S: AsRef<str>>(
+    pub async fn create_index(
         &self,
-        uid: S,
-        primary_key: Option<S>,
+        uid: impl AsRef<str>,
+        primary_key: Option<&str>,
     ) -> Result<Index, Error> {
         Ok(request::<Value, JsonIndex>(
-            &format!("{}/indexes", self.config.host),
-            &self.config.api_key,
+            &format!("{}/indexes", self.host),
+            &self.api_key,
             Method::Post(json!({
                 "uid": uid.as_ref(),
-                "primaryKey": primary_key.map(|v|v.as_ref().to_string()),
+                "primaryKey": primary_key,
             })),
             201,
         ).await?
-        .into_index(self.config.clone()))
+        .into_index(self))
     }
 
     /// Delete an index from its UID.
     /// To delete an index from the [index object](../indexes/struct.Index.html), use [the delete method](../indexes/struct.Index.html#method.delete).
-    pub async fn delete_index<S: AsRef<str>>(&self, uid: S) -> Result<(), Error> {
+    pub async fn delete_index(&self, uid: impl AsRef<str>) -> Result<(), Error> {
         Ok(request::<(), ()>(
-            &format!("{}/indexes/{}", self.config.host, uid.as_ref()),
-            &self.config.api_key,
+            &format!("{}/indexes/{}", self.host, uid.as_ref()),
+            &self.api_key,
             Method::Delete,
             204,
         ).await?)
     }
 
     /// This will try to get an index and create the index if it does not exist.
-    pub async fn get_or_create<S: AsRef<str>>(&self, uid: S) -> Result<Index, Error> {
-        let uid: String = uid.as_ref().to_string();
-        if let Ok(index) = self.get_index(&uid).await {
+    pub async fn get_or_create(&self, uid: impl AsRef<str>) -> Result<Index, Error> {
+        if let Ok(index) = self.get_index(uid.as_ref()).await {
             Ok(index)
         } else {
-            self.create_index(&uid, None).await
+            self.create_index(uid, None).await
         }
     }
 
@@ -164,8 +168,8 @@ impl Client {
     /// ```
     pub async fn get_stats(&self) -> Result<ClientStats, Error> {
         request::<serde_json::Value, ClientStats>(
-            &format!("{}/stats", self.config.host),
-            &self.config.api_key,
+            &format!("{}/stats", self.host),
+            &self.api_key,
             Method::Get,
             200,
         ).await
@@ -185,8 +189,8 @@ impl Client {
     /// ```
     pub async fn health(&self) -> Result<Health, Error> {
         request::<serde_json::Value, Health>(
-            &format!("{}/health", self.config.host),
-            &self.config.api_key,
+            &format!("{}/health", self.host),
+            &self.api_key,
             Method::Get,
             200,
         )
@@ -228,8 +232,8 @@ impl Client {
     /// ```
     pub async fn get_keys(&self) -> Result<Keys, Error> {
         request::<(), Keys>(
-            &format!("{}/keys", self.config.host),
-            &self.config.api_key,
+            &format!("{}/keys", self.host),
+            &self.api_key,
             Method::Get,
             200,
         ).await
@@ -249,8 +253,8 @@ impl Client {
     /// ```
     pub async fn get_version(&self) -> Result<Version, Error> {
         request::<(), Version>(
-            &format!("{}/version", self.config.host),
-            &self.config.api_key,
+            &format!("{}/version", self.host),
+            &self.api_key,
             Method::Get,
             200,
         ).await

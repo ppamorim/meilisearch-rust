@@ -97,7 +97,6 @@
 
 /// Module containing the Client struct.
 pub mod client;
-pub mod config;
 /// Module containing the Document trait.
 pub mod document;
 pub mod dumps;
@@ -112,3 +111,8 @@ mod request;
 pub mod search;
 /// Module containing settings
 pub mod settings;
+
+#[cfg(feature = "sync")]
+pub(crate) type Rc<T> = std::sync::Arc<T>;
+#[cfg(not(feature = "sync"))]
+pub(crate) type Rc<T> = std::rc::Rc<T>;
